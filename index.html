@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Métricas de Mantenimiento con IA</title>
+    <!-- Tailwind CSS para un diseño rápido y responsivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js para los gráficos interactivos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Estilo corporativo y minimalista inspirado en las imágenes */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #eef2f9; /* Fondo gris azulado muy claro */
+            color: #1e3a8a; /* Azul marino oscuro para el texto */
+        }
+        .card {
+            background-color: #ffffff; 
+            border-radius: 8px;
+            border: 1px solid #d1d9e6;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            padding: 1.5rem;
+        }
+        .kpi-card {
+            padding: 1rem;
+            text-align: center;
+            background-color: #f8fafc;
+            border-radius: 8px;
+        }
+        .kpi-value {
+            font-size: 2.5rem;
+            font-weight: 600;
+            line-height: 1.1;
+        }
+        .kpi-label {
+            font-size: 0.9rem;
+            color: #64748b;
+            margin-top: 0.5rem;
+        }
+        .filter-select {
+            background-color: #ffffff;
+            border: 1px solid #cbd5e1;
+            color: #334155;
+        }
+        /* Estilos para la tabla de detalle */
+        .table-container {
+            max-height: 350px;
+            overflow-y: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th {
+            background-color: #f8fafc;
+            position: sticky;
+            top: 0;
+            font-weight: 600;
+            color: #334155;
+        }
+        tr:hover {
+            background-color: #f1f5f9;
+        }
+        .chart-container {
+            position: relative;
+            height: 250px;
+            width: 100%;
+        }
+        /* Estilos para el Modal y Botón de IA */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .gemini-button {
+            background-color: #334155;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+        .gemini-button:hover {
+            background-color: #1e293b;
+        }
+        .header-line {
+            border-bottom: 2px solid #3b82f6; /* Línea azul */
+            width: 100px;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <!-- Encabezado -->
+        <header class="mb-8">
+            <div class="flex justify-between items-center text-sm text-gray-500 mb-4">
+                <span>.UBAdererecho</span>
+                <span>IALAB</span>
+            </div>
+            <div>
+                 <h1 class="text-5xl font-bold text-slate-800">PECOM</h1>
+                 <div class="header-line"></div>
+                 <p class="text-slate-600 mt-2">AGENTE DE MANTENIMIENTO PREDICTIVO</p>
+            </div>
+        </header>
+
+        <!-- Controles: Filtros y Botón IA -->
+        <div class="card mb-8 p-4">
+            <div class="flex flex-wrap justify-between items-center gap-4">
+                <div class="flex-grow grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label for="locationFilter" class="block text-sm font-medium text-slate-600 mb-1">Ubicación</label>
+                        <select id="locationFilter" class="filter-select w-full p-2 rounded-md text-sm">
+                            <option value="all">Todas</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="priorityFilter" class="block text-sm font-medium text-slate-600 mb-1">Prioridad</label>
+                        <select id="priorityFilter" class="filter-select w-full p-2 rounded-md text-sm">
+                            <option value="all">Todas</option>
+                        </select>
+                    </div>
+                     <div>
+                        <label for="orderTypeFilter" class="block text-sm font-medium text-slate-600 mb-1">Clase</label>
+                        <select id="orderTypeFilter" class="filter-select w-full p-2 rounded-md text-sm">
+                            <option value="all">Todas</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex-shrink-0">
+                     <button id="analyzeKpisButton" class="gemini-button mt-5">✨ Analizar KPIs</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Grids de Métricas -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Columna Izquierda: PIM y AGING -->
+            <div class="space-y-6">
+                <!-- Card PIM -->
+                <div class="card">
+                    <h2 class="text-xl font-semibold text-center mb-4 text-slate-700">PIM - Cumplimiento Preventivo</h2>
+                    <div class="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                            <div id="pim-value" class="kpi-value" style="color: #3b82f6;">0%</div>
+                            <div class="kpi-label">Cumplimiento</div>
+                        </div>
+                        <div>
+                            <div id="pim-planned" class="kpi-value" style="color: #475569;">0</div>
+                            <div class="kpi-label">Planificadas</div>
+                        </div>
+                        <div>
+                            <div id="pim-executed" class="kpi-value" style="color: #475569;">0</div>
+                            <div class="kpi-label">Ejecutadas</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Card AGING -->
+                <div class="card">
+                    <h2 class="text-xl font-semibold text-center mb-4 text-slate-700">AGING - Órdenes Abiertas</h2>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="chart-container">
+                             <canvas id="agingChart"></canvas>
+                        </div>
+                        <div class="space-y-3">
+                            <div class="kpi-card"><div id="aging-major-value" class="kpi-value" style="color: #ef4444;">0</div><div class="kpi-label">OMs Mayor 30</div></div>
+                            <div class="kpi-card"><div id="aging-mid-value" class="kpi-value" style="color: #f97316;">0</div><div class="kpi-label">OMs Entre 15 y 30</div></div>
+                            <div class="kpi-card"><div id="aging-minor-value" class="kpi-value" style="color: #22c55e;">0</div><div class="kpi-label">OMs Menor 15</div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Columna Derecha: BACKLOG y NRUT -->
+            <div class="space-y-6">
+                <!-- Card BACKLOG -->
+                <div class="card">
+                    <h2 class="text-xl font-semibold text-center mb-4 text-slate-700">BACKLOG</h2>
+                     <div class="grid grid-cols-2 gap-4 items-center">
+                        <div class="kpi-card">
+                            <div id="backlog-value" class="kpi-value" style="color: #f97316;">0</div>
+                            <div class="kpi-label">Órdenes en Backlog</div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="backlogChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <!-- Card NRUT -->
+                <div class="card">
+                    <h2 class="text-xl font-semibold text-center mb-4 text-slate-700">NRUT - Incumplimiento Correctivo</h2>
+                    <div class="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                            <div id="nrut-value" class="kpi-value" style="color: #ef4444;">0%</div>
+                            <div class="kpi-label">% No Realizadas</div>
+                        </div>
+                        <div>
+                            <div id="nrut-planned" class="kpi-value" style="color: #475569;">0</div>
+                            <div class="kpi-label">Planificadas</div>
+                        </div>
+                        <div>
+                            <div id="nrut-not-executed" class="kpi-value" style="color: #475569;">0</div>
+                            <div class="kpi-label">No Realizadas</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tabla de Detalle -->
+            <div class="card lg:col-span-2">
+                <h2 class="text-xl font-semibold mb-4 text-slate-700">Detalle de Órdenes Abiertas</h2>
+                <div id="openOrdersTableContainer" class="table-container">
+                    <p class="text-gray-500 text-center p-8">No hay órdenes abiertas para la selección actual.</p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Modal para mostrar resultados de Gemini -->
+    <div id="gemini-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold">Análisis de IA</h3>
+                <button id="close-modal" class="text-2xl">&times;</button>
+            </div>
+            <div id="gemini-response" class="text-gray-700 space-y-4">
+                <!-- El contenido de la IA se insertará aquí -->
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // --- CONFIGURACIÓN E INICIALIZACIÓN ---
+        const today = new Date('2025-07-22T12:00:00'); // Fecha de corte para los cálculos
+        const currentMonth = today.getMonth(); // Julio (índice 6)
+        const currentYear = today.getFullYear();
+        let fullData = [];
+        let charts = {};
+
+        const corporateColors = {
+            blue: '#3b82f6',
+            orange: '#f97316',
+            gray: '#64748b',
+            yellow: '#f59e0b',
+            green: '#22c55e',
+            red: '#ef4444'
+        };
+
+        // --- DATOS EMBEBIDOS (CORREGIDOS SEGÚN IMÁGENES) ---
+        const embeddedData = [
+            // --- ÓRDENES ABIERTAS (BACKLOG = 10) ---
+            // 5 órdenes con AGING < 15 días
+            { "Orden": 100455993, "Clase de orden": "ZM01", "Ubicac.técnica": "LC/DX1/DGAS1/GX1-PG1", "Texto breve": "Cateo para inspección con phased array", "Cl.actividad PM": "CM", "Fecha entrada": "15/07/2025", "Fecha fin real": null, "Fe.inic.extrema": "15/07/2025" }, // 7 días
+            { "Orden": 100455459, "Clase de orden": "ZM01", "Ubicac.técnica": "LC/PG4", "Texto breve": "Valvulas Kiene Cilindros Compresores", "Cl.actividad PM": "MOD", "Fecha entrada": "08/07/2025", "Fecha fin real": null, "Fe.inic.extrema": "08/07/2025" }, // 14 días
+            { "Orden": 100455992, "Clase de orden": "ZM01", "Ubicac.técnica": "LC/DX1/DGAS1/GX1-PG1", "Texto breve": "Cateo para inspección con phased array", "Cl.actividad PM": "CM", "Fecha entrada": "08/07/2025", "Fecha fin real": null, "Fe.inic.extrema": "08/07/2025" }, // 14 días
+            { "Orden": 201185170, "Clase de orden": "ZM02", "Ubicac.técnica": "LC/K05/DESH1/C-20052", "Texto breve": "Mto PRD PSV-0100 (1A) TPF KS", "Cl.actividad PM": "PM", "Fecha entrada": "08/07/2025", "Fecha fin real": null, "Fe.inic.extrema": "08/07/2025" }, // 14 días
+            { "Orden": 201185171, "Clase de orden": "ZM02", "Ubicac.técnica": "LC/PG2/MNFL1/R-EPF", "Texto breve": "AR90-IE-Inspeccion con UT VGL-100379", "Cl.actividad PM": "PM", "Fecha entrada": "08/07/2025", "Fecha fin real": null, "Fe.inic.extrema": "08/07/2025" }, // 14 días
+            // 5 órdenes con AGING 15-30 días
+            { "Orden": 100433300, "Clase de orden": "ZM01", "Ubicac.técnica": "LC/DP2/DGAS1/STAQ-410", "Texto breve": "LBV40600 revisar limit switch", "Cl.actividad PM": "CM", "Fecha entrada": "02/07/2025", "Fecha fin real": null, "Fe.inic.extrema": "02/07/2025" }, // 20 días
+            { "Orden": 100433302, "Clase de orden": "ZM01", "Ubicac.técnica": "LC/PG1/DGAS1/STAH-110", "Texto breve": "LBV10600 revisar limit switch", "Cl.actividad PM": "CM", "Fecha entrada": "03/07/2025", "Fecha fin real": null, "Fe.inic.extrema": "03/07/2025" }, // 19 días
+            { "Orden": 100433303, "Clase de orden": "ZM01", "Ubicac.técnica": "LC/PG1/DGAS1/STAQ-106", "Texto breve": "LBV10275 mantenimiento general", "Cl.actividad PM": "PM", "Fecha entrada": "03/07/2025", "Fecha fin real": null, "Fe.inic.extrema": "03/07/2025" }, // 19 días
+            { "Orden": 100446690, "Clase de orden": "ZM01", "Ubicac.técnica": "LC/PG1/TGAS1/TKBH-600", "Texto breve": "Reemplazo switch de nivel LSHL-60012", "Cl.actividad PM": "CM", "Fecha entrada": "03/07/2025", "Fecha fin real": null, "Fe.inic.extrema": "03/07/2025" }, // 19 días
+            { "Orden": 201185169, "Clase de orden": "ZM02", "Ubicac.técnica": "LC/K05/DESH1/BBC-1700", "Texto breve": "Mto PRD PSV-1700 (1A) TPF KS", "Cl.actividad PM": "PM", "Fecha entrada": "03/07/2025", "Fecha fin real": null, "Fe.inic.extrema": "03/07/2025" }, // 19 días
+
+            // --- ÓRDENES CERRADAS (Para completar métricas PIM y NRUT) ---
+            // 7 PM Ejecutadas en el mes
+            { "Orden": 100454574, "Clase de orden": "ZM01", "Ubicac.técnica": "LC/PG2/DESH2/VBD-12001", "Texto breve": "Dureza en operacion valvulas esfericas 1", "Cl.actividad PM": "PM", "Fecha entrada": "04/07/2025", "Fecha fin real": "10/07/2025", "Fe.inic.extrema": "04/07/2025" },
+            { "Orden": 100454575, "Clase de orden": "ZM01", "Ubicac.técnica": "LC/PG2/DESH1/VBD-11001", "Texto breve": "Dureza en operacion valvulas esfericas 1", "Cl.actividad PM": "PM", "Fecha entrada": "05/07/2025", "Fecha fin real": "11/07/2025", "Fe.inic.extrema": "05/07/2025" },
+            { "Orden": 100429218, "Clase de orden": "ZM01", "Ubicac.técnica": "LC/PG1/GCMB1/EAP-300", "Texto breve": "Reemplazar Valvula GC EZH x 627", "Cl.actividad PM": "PM", "Fecha entrada": "06/07/2025", "Fecha fin real": "12/07/2025", "Fe.inic.extrema": "06/07/2025" },
+            { "Orden": 100430365, "Clase de orden": "ZM01", "Ubicac.técnica": "LC/PG1/DESH4/T-710.B", "Texto breve": "Reponer Visor de nivel LG-710B", "Cl.actividad PM": "PM", "Fecha entrada": "07/07/2025", "Fecha fin real": "13/07/2025", "Fe.inic.extrema": "07/07/2025" },
+            { "Orden": 100439426, "Clase de orden": "ZM01", "Ubicac.técnica": "LC/GE2/EEMEZ/SALACONTROL-GE", "Texto breve": "Redistribución alimentación Tomas Sala 1", "Cl.actividad PM": "PM", "Fecha entrada": "08/07/2025", "Fecha fin real": "14/07/2025", "Fe.inic.extrema": "08/07/2025" },
+            { "Orden": 100450874, "Clase de orden": "ZM01", "Ubicac.técnica": "LC/DT3/DOIL1/LBV-31170", "Texto breve": "Chequeo de actuador LBV 31170 12.09.202", "Cl.actividad PM": "PM", "Fecha entrada": "09/07/2025", "Fecha fin real": "15/07/2025", "Fe.inic.extrema": "09/07/2025" },
+            { "Orden": 100427927, "Clase de orden": "ZM01", "Ubicac.técnica": "LC/DP2/DGAS1/STAQ-409", "Texto breve": "Válvula no abre con motor eléctrico", "Cl.actividad PM": "PM", "Fecha entrada": "10/07/2025", "Fecha fin real": "16/07/2025", "Fe.inic.extrema": "10/07/2025" },
+            // 3 CM Ejecutadas en el mes
+            { "Orden": 200000001, "Clase de orden": "ZM01", "Ubicac.técnica": "LC/TEST", "Texto breve": "Test CM Ejecutada 1", "Cl.actividad PM": "CM", "Fecha entrada": "01/07/2025", "Fecha fin real": "05/07/2025", "Fe.inic.extrema": "01/07/2025" },
+            { "Orden": 200000002, "Clase de orden": "ZM01", "Ubicac.técnica": "LC/TEST", "Texto breve": "Test CM Ejecutada 2", "Cl.actividad PM": "CM", "Fecha entrada": "02/07/2025", "Fecha fin real": "06/07/2025", "Fe.inic.extrema": "02/07/2025" },
+            { "Orden": 200000003, "Clase de orden": "ZM01", "Ubicac.técnica": "LC/TEST", "Texto breve": "Test CM Ejecutada 3", "Cl.actividad PM": "CM", "Fecha entrada": "03/07/2025", "Fecha fin real": "07/07/2025", "Fe.inic.extrema": "03/07/2025" }
+        ];
+
+        // --- FUNCIONES DE PARSEO Y UTILIDADES ---
+        function parseDate(dateStr) {
+            if (!dateStr || typeof dateStr !== 'string') return null;
+            const parts = dateStr.split('/');
+            if (parts.length !== 3) return null;
+            const date = new Date(parts[2], parts[1] - 1, parts[0]);
+            return isNaN(date.getTime()) ? null : date;
+        }
+
+        // --- LÓGICA PRINCIPAL DEL DASHBOARD ---
+        function processData(data) {
+            return data.map(row => ({...row, 'Fecha entrada': parseDate(row['Fecha entrada']), 'Fecha fin real': parseDate(row['Fecha fin real']), 'Fe.inic.extrema': parseDate(row['Fe.inic.extrema']), 'Prioridad': row['Prioridad'] ? parseInt(row['Prioridad'], 10) : null }));
+        }
+
+        function populateFilters(data) {
+            const locationFilter = document.getElementById('locationFilter');
+            const priorityFilter = document.getElementById('priorityFilter');
+            const orderTypeFilter = document.getElementById('orderTypeFilter');
+
+            const locations = [...new Set(data.map(item => item['Ubicac.técnica']).filter(Boolean))].sort();
+            const priorities = [...new Set(data.map(item => item['Prioridad']).filter(p => p !== null))].sort((a,b) => a-b);
+            const orderTypes = [...new Set(data.map(item => item['Clase de orden']).filter(Boolean))].sort();
+            
+            if(locationFilter) locations.forEach(loc => locationFilter.innerHTML += `<option value="${loc}">${loc}</option>`);
+            if(priorityFilter) priorities.forEach(prio => priorityFilter.innerHTML += `<option value="${prio}">${prio}</option>`);
+            if(orderTypeFilter) orderTypes.forEach(type => orderTypeFilter.innerHTML += `<option value="${type}">${type}</option>`);
+        }
+
+        function setupEventListeners() {
+            const locationFilter = document.getElementById('locationFilter');
+            const priorityFilter = document.getElementById('priorityFilter');
+            const orderTypeFilter = document.getElementById('orderTypeFilter');
+            
+            [locationFilter, priorityFilter, orderTypeFilter].forEach(filter => {
+                if (filter) filter.addEventListener('change', updateDashboard);
+            });
+            document.getElementById('analyzeKpisButton').addEventListener('click', callGeminiForSummary);
+            document.getElementById('close-modal').addEventListener('click', () => document.getElementById('gemini-modal').classList.add('hidden'));
+        }
+
+        function updateDashboard() {
+            const locationFilter = document.getElementById('locationFilter');
+            const priorityFilter = document.getElementById('priorityFilter');
+            const orderTypeFilter = document.getElementById('orderTypeFilter');
+
+            const filters = { 
+                location: locationFilter ? locationFilter.value : 'all', 
+                priority: priorityFilter ? priorityFilter.value : 'all', 
+                orderType: orderTypeFilter ? orderTypeFilter.value : 'all' 
+            };
+            const filteredData = fullData.filter(row => {
+                const locMatch = filters.location === 'all' || row['Ubicac.técnica'] === filters.location;
+                const prioMatch = filters.priority === 'all' || row['Prioridad'] == filters.priority;
+                const typeMatch = filters.orderType === 'all' || row['Clase de orden'] === filters.orderType;
+                return locMatch && prioMatch && typeMatch;
+            });
+            
+            const openOrders = filteredData.filter(row => !row['Fecha fin real']);
+            
+            // --- CÁLCULO DE MÉTRICAS ---
+
+            // 1. BACKLOG
+            document.getElementById('backlog-value').textContent = openOrders.length;
+            const backlogByType = openOrders.reduce((acc, row) => {
+                const type = row['Clase de orden'] || 'Sin Clase';
+                acc[type] = (acc[type] || 0) + 1;
+                return acc;
+            }, {});
+            updateBacklogChart(backlogByType);
+            updateOpenOrdersTable(openOrders);
+
+            // 2. AGING (Todas las órdenes abiertas)
+            const agingDistribution = { 'Menor 15': 0, 'Entre 15 y 30': 0, 'Mayor 30': 0 };
+            openOrders.forEach(row => {
+                if (row['Fecha entrada']) {
+                    const days = (today - row['Fecha entrada']) / (1000 * 3600 * 24);
+                    if (days < 15) agingDistribution['Menor 15']++;
+                    else if (days <= 30) agingDistribution['Entre 15 y 30']++;
+                    else agingDistribution['Mayor 30']++;
+                }
+            });
+            document.getElementById('aging-major-value').textContent = agingDistribution['Mayor 30'];
+            document.getElementById('aging-mid-value').textContent = agingDistribution['Entre 15 y 30'];
+            document.getElementById('aging-minor-value').textContent = agingDistribution['Menor 15'];
+            updateAgingChart(agingDistribution);
+
+            // 3. PIM (Cumplimiento Preventivo del mes)
+            const pmInMonth = filteredData.filter(row => row['Cl.actividad PM'] === 'PM' && row['Fe.inic.extrema'] && row['Fe.inic.extrema'].getMonth() === currentMonth && row['Fe.inic.extrema'].getFullYear() === currentYear);
+            const pmExecuted = pmInMonth.filter(row => row['Fecha fin real']);
+            const pimPlannedCount = pmInMonth.length;
+            const pimExecutedCount = pmExecuted.length;
+            const pimPercentage = pimPlannedCount > 0 ? (pimExecutedCount / pimPlannedCount) * 100 : 0;
+            document.getElementById('pim-value').textContent = `${pimPercentage.toFixed(0)}%`;
+            document.getElementById('pim-planned').textContent = pimPlannedCount;
+            document.getElementById('pim-executed').textContent = pimExecutedCount;
+
+            // 4. NRUT (Correctivas planificadas no realizadas en el mes)
+            const cmPlannedInMonth = filteredData.filter(row => row['Cl.actividad PM'] === 'CM' && row['Fe.inic.extrema'] && row['Fe.inic.extrema'].getMonth() === currentMonth && row['Fe.inic.extrema'].getFullYear() === currentYear);
+            const cmNotExecuted = cmPlannedInMonth.filter(row => !row['Fecha fin real']);
+            const nrutPlannedCount = cmPlannedInMonth.length;
+            const nrutNotExecutedCount = cmNotExecuted.length;
+            const nrutPercentage = nrutPlannedCount > 0 ? (nrutNotExecutedCount / nrutPlannedCount) * 100 : 0;
+            document.getElementById('nrut-value').textContent = `${nrutPercentage.toFixed(0)}%`;
+            document.getElementById('nrut-planned').textContent = nrutPlannedCount;
+            document.getElementById('nrut-not-executed').textContent = nrutNotExecutedCount;
+        }
+        
+        // --- FUNCIONES DE ACTUALIZACIÓN DE GRÁFICOS ---
+        function updateBacklogChart(data) {
+            const ctx = document.getElementById('backlogChart').getContext('2d');
+            if (charts.backlog) charts.backlog.destroy();
+            charts.backlog = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{
+                        data: Object.values(data),
+                        backgroundColor: [corporateColors.orange, corporateColors.blue, corporateColors.gray],
+                        borderColor: '#ffffff',
+                        borderWidth: 4
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#495057' } } } }
+            });
+        }
+
+        function updateAgingChart(data) {
+            const ctx = document.getElementById('agingChart').getContext('2d');
+            if (charts.aging) charts.aging.destroy();
+            charts.aging = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{
+                        data: Object.values(data),
+                        backgroundColor: [corporateColors.green, corporateColors.orange, corporateColors.red],
+                        borderColor: '#ffffff',
+                        borderWidth: 4,
+                        cutout: '60%'
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        }
+        
+        function updateOpenOrdersTable(data) {
+            const container = document.getElementById('openOrdersTableContainer');
+            if (data.length === 0) {
+                container.innerHTML = `<p class="text-gray-500 text-center p-8">No hay órdenes abiertas para la selección actual.</p>`;
+                return;
+            }
+            data.sort((a, b) => b['Fecha entrada'] - a['Fecha entrada']);
+            let tableHTML = `<table><thead><tr><th>Orden</th><th>Texto Breve</th><th>Ubicación</th><th>Aging</th><th>Acción</th></tr></thead><tbody>`;
+            data.forEach(row => {
+                const agingDays = Math.floor((today - row['Fecha entrada']) / (1000 * 3600 * 24));
+                tableHTML += `<tr>
+                                <td>${row.Orden}</td>
+                                <td>${row['Texto breve']}</td>
+                                <td>${row['Ubicac.técnica']}</td>
+                                <td>${agingDays} días</td>
+                                <td><button class="gemini-button" onclick='callGeminiForNextStep(${JSON.stringify(row)})'>✨ Sugerir</button></td>
+                              </tr>`;
+            });
+            tableHTML += `</tbody></table>`;
+            container.innerHTML = tableHTML;
+        }
+
+        // --- FUNCIONES DE LA API DE GEMINI ---
+        const modal = document.getElementById('gemini-modal');
+        const modalResponse = document.getElementById('gemini-response');
+
+        function showLoading() {
+            modal.classList.remove('hidden');
+            modalResponse.innerHTML = '<p>Analizando datos y generando respuesta...</p>';
+        }
+
+        async function callGeminiForSummary() {
+            showLoading();
+            const backlogValue = document.getElementById('backlog-value').textContent;
+            const pimValue = document.getElementById('pim-value').textContent;
+            const nrutValue = document.getElementById('nrut-value').textContent;
+            const agingMajorValue = document.getElementById('aging-major-value').textContent;
+            
+            const prompt = `Eres un gerente de mantenimiento experto. Analiza los siguientes KPIs de un tablero de control: Backlog de ${backlogValue} órdenes, Cumplimiento PIM de ${pimValue}, ${agingMajorValue} órdenes con más de 30 días de antigüedad, y una tasa de incumplimiento NRUT (correctivas) de ${nrutValue}. Proporciona un resumen ejecutivo conciso en formato HTML y destaca las áreas de mayor preocupación con bullets points.`;
+
+            try {
+                const chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+                const payload = { contents: chatHistory };
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0) {
+                    const text = result.candidates[0].content.parts[0].text;
+                    modalResponse.innerHTML = text.replace(/\\n/g, '<br>');
+                } else {
+                    modalResponse.textContent = 'No se pudo obtener una respuesta de la IA.';
+                }
+            } catch (error) {
+                console.error("Error calling Gemini API:", error);
+                modalResponse.textContent = 'Error al contactar el servicio de IA. Revisa la consola para más detalles.';
+            }
+        }
+
+        window.callGeminiForNextStep = async function(order) {
+            showLoading();
+            const agingDays = Math.floor((today - new Date(order['Fecha entrada'])) / (1000 * 3600 * 24));
+            const prompt = `Eres un planificador de mantenimiento. Para una orden de trabajo abierta con la descripción: '${order['Texto breve']}', en la ubicación '${order['Ubicac.técnica']}', y con una antigüedad de ${agingDays} días, sugiere el próximo paso concreto y accionable para resolverla. Sé breve y directo.`;
+            
+            try {
+                const chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+                const payload = { contents: chatHistory };
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0) {
+                    modalResponse.textContent = result.candidates[0].content.parts[0].text;
+                } else {
+                    modalResponse.textContent = 'No se pudo obtener una respuesta de la IA.';
+                }
+            } catch (error) {
+                console.error("Error calling Gemini API:", error);
+                modalResponse.textContent = 'Error al contactar el servicio de IA. Revisa la consola para más detalles.';
+            }
+        }
+
+        // Iniciar la aplicación
+        document.addEventListener('DOMContentLoaded', () => {
+            fullData = processData(embeddedData);
+            populateFilters(fullData);
+            updateDashboard();
+            setupEventListeners();
+        });
+    </script>
+</body>
+</html>
